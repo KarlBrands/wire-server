@@ -1,0 +1,11 @@
+resolver: lts-10.3
+packages:
+- '.'
+- '../types-common'
+
+flags:
+  types-common:
+    protobuf: True
+    arbitrary: True
+
+extra-package-dbs: []

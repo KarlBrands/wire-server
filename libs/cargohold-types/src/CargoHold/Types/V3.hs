@@ -20,7 +20,7 @@ module CargoHold.Types.V3
     , setAssetRetention
     , AssetRetention (..)
     , assetRetentionSeconds
-    , assetPersistentSeconds
+    , assetPersistentPersonalSeconds
     , assetVolatileSeconds
 
       -- * AssetToken
@@ -110,25 +110,33 @@ mkHeaders t b = AssetHeaders t (fromIntegral (LBS.length b)) (hashlazy b)
 -- | The desired asset retention.
 data AssetRetention
     = AssetEternal
-        -- ^ The asset is retained indefinitely.
+        -- ^ The asset is retained indefinitely. Typically used
+        -- for profile pictures / assets frequently accessed.
     | AssetPersistent
-        -- ^ The asset is retained for an extended period of time,
-        -- but not indefinitely.
+        -- ^ DEPRECATED: should not be used by clients for new assets
+        -- The asset is retained indefinitely.
     | AssetVolatile
         -- ^ The asset is retained for a short period of time.
+    | AssetPersistentTeam
+        -- The asset is retained indefinitely.
+    | AssetPersistentPersonal
+        -- ^ The asset is retained for an extended period of time,
+        -- but not indefinitely.
     deriving (Eq, Show)
 
 -- | The minimum TTL in seconds corresponding to a chosen retention.
 assetRetentionSeconds :: AssetRetention -> Maybe NominalDiffTime
 assetRetentionSeconds AssetEternal    = Nothing
-assetRetentionSeconds AssetPersistent = Just assetPersistentSeconds
+assetRetentionSeconds AssetPersistent = Nothing
 assetRetentionSeconds AssetVolatile   = Just assetVolatileSeconds
+assetRetentionSeconds AssetPersistentTeam     = Nothing
+assetRetentionSeconds AssetPersistentPersonal = Just assetPersistentPersonalSeconds
 
 assetVolatileSeconds :: NominalDiffTime
-assetVolatileSeconds = 24 * 3600 -- 24 hours
+assetVolatileSeconds = 28 * 24 * 3600 -- 28 days
 
-assetPersistentSeconds :: NominalDiffTime
-assetPersistentSeconds = 365 * 24 * 3600 -- 365 days
+assetPersistentPersonalSeconds :: NominalDiffTime
+assetPersistentPersonalSeconds = 365 * 24 * 3600 -- 365 days
 
 -- | Settings provided during upload.
 data AssetSettings = AssetSettings
@@ -146,12 +154,16 @@ instance FromByteString AssetRetention where
         1 -> return AssetEternal
         2 -> return AssetPersistent
         3 -> return AssetVolatile
+        4 -> return AssetPersistentTeam
+        5 -> return AssetPersistentPersonal
         _ -> fail $ "Invalid asset retention: " ++ show d
 
 instance ToByteString AssetRetention where
     builder AssetEternal    = builder '1'
     builder AssetPersistent = builder '2'
     builder AssetVolatile   = builder '3'
+    builder AssetPersistentTeam = builder '4'
+    builder AssetPersistentPersonal = builder '5'
 
 instance FromJSON AssetRetention where
     parseJSON = withText "AssetRetention" $ \t ->
@@ -159,12 +171,16 @@ instance FromJSON AssetRetention where
             "eternal"    -> pure AssetEternal
             "persistent" -> pure AssetPersistent
             "volatile"   -> pure AssetVolatile
+            "persistent-team"     -> pure AssetPersistentTeam
+            "persistent-personal" -> pure AssetPersistentPersonal
             _            -> fail $ "Invalid asset retention: " ++ show t
 
 instance ToJSON AssetRetention where
     toJSON AssetEternal    = String "eternal"
     toJSON AssetPersistent = String "persistent"
     toJSON AssetVolatile   = String "volatile"
+    toJSON AssetPersistentTeam = String "persistent-team"
+    toJSON AssetPersistentPersonal = String "persistent-personal"
 
 instance FromJSON AssetSettings where
     parseJSON = withObject "AssetSettings" $ \o ->
